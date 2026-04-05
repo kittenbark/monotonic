@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans: 'Inter', '-apple-system', 'Roboto', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --color-background: oklch(1 0 0);
+    --color-foreground: oklch(0.141 0.005 285.823);
+    --color-card: oklch(1 0 0);
+    --color-card-foreground: oklch(0.141 0.005 285.823);
+    --color-popover: oklch(1 0 0);
+    --color-popover-foreground: oklch(0.141 0.005 285.823);
+    --color-primary: oklch(0.21 0.006 285.885);
+    --color-primary-foreground: oklch(0.985 0 0);
+    --color-secondary: oklch(0.967 0.001 286.375);
+    --color-secondary-foreground: oklch(0.21 0.006 285.885);
+    --color-muted: oklch(0.967 0.001 286.375);
+    --color-muted-foreground: oklch(0.552 0.016 285.938);
+    --color-accent: oklch(0.967 0.001 286.375);
+    --color-accent-foreground: oklch(0.21 0.006 285.885);
+    --color-destructive: oklch(0.577 0.245 27.325);
+    --color-destructive-foreground: oklch(0.577 0.245 27.325);
+    --color-border: oklch(0.92 0.004 286.32);
+    --color-input: oklch(0.92 0.004 286.32);
+    --color-ring: oklch(0.871 0.006 286.286);
+    --color-sidebar: oklch(0.985 0 0);
+    --color-sidebar-foreground: oklch(0.141 0.005 285.823);
+    --color-sidebar-primary: oklch(0.21 0.006 285.885);
+    --color-sidebar-primary-foreground: oklch(0.985 0 0);
+    --color-sidebar-accent: oklch(0.967 0.001 286.375);
+    --color-sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+    --color-sidebar-border: oklch(0.92 0.004 286.32);
+    --color-sidebar-ring: oklch(0.871 0.006 286.286);
+    --radius: 0.625rem;
+}
+
+/* ── Dark theme overrides ── */
+.dark {
+    --color-background: oklch(0.141 0.005 285.823);
+    --color-foreground: oklch(0.985 0 0);
+    --color-card: oklch(0.141 0.005 285.823);
+    --color-card-foreground: oklch(0.985 0 0);
+    --color-popover: oklch(0.141 0.005 285.823);
+    --color-popover-foreground: oklch(0.985 0 0);
+    --color-primary: oklch(0.985 0 0);
+    --color-primary-foreground: oklch(0.21 0.006 285.885);
+    --color-secondary: oklch(0.269 0.006 286.033);
+    --color-secondary-foreground: oklch(0.985 0 0);
+    --color-muted: oklch(0.269 0.006 286.033);
+    --color-muted-foreground: oklch(0.705 0.015 286.067);
+    --color-accent: oklch(0.269 0.006 286.033);
+    --color-accent-foreground: oklch(0.985 0 0);
+    --color-destructive: oklch(0.577 0.245 27.325);
+    --color-destructive-foreground: oklch(0.577 0.245 27.325);
+    --color-border: oklch(0.269 0.006 286.033);
+    --color-input: oklch(0.269 0.006 286.033);
+    --color-ring: oklch(0.439 0.01 286.067);
+    --color-sidebar: oklch(0.18 0.005 285.823);
+    --color-sidebar-foreground: oklch(0.985 0 0);
+    --color-sidebar-primary: oklch(0.985 0 0);
+    --color-sidebar-primary-foreground: oklch(0.21 0.006 285.885);
+    --color-sidebar-accent: oklch(0.269 0.006 286.033);
+    --color-sidebar-accent-foreground: oklch(0.985 0 0);
+    --color-sidebar-border: oklch(0.269 0.006 286.033);
+    --color-sidebar-ring: oklch(0.439 0.01 286.067);
+}
+
+@layer base {
+    html, body {
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    main {
+        font-feature-settings: "rlig" 1, "calt" 1;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    .markdown h1 {
+        @apply scroll-m-20 text-center text-4xl font-extrabold tracking-tight text-balance mt-6 first:mt-0;
+    }
+
+    .markdown h2 {
+        @apply scroll-m-20 border-b border-border pb-2 text-3xl font-semibold tracking-tight mt-6 first:mt-0;
+    }
+
+    .markdown h3 {
+        @apply scroll-m-20 text-2xl font-semibold tracking-tight mt-5 first:mt-0;
+    }
+
+    .markdown h4 {
+        @apply scroll-m-20 text-xl font-semibold tracking-tight mt-5 first:mt-0;
+    }
+
+    .markdown h5 {
+        @apply scroll-m-20 text-lg font-medium tracking-tight mt-5 first:mt-0;
+    }
+
+    .markdown h6 {
+        @apply scroll-m-20 text-base font-medium tracking-tight text-muted-foreground mt-5 first:mt-0;
+    }
+
+    .markdown p {
+        @apply leading-5 [&:not(:first-child)]:mt-5;
+    }
+
+    .markdown blockquote {
+        @apply mt-5 border-l-2 border-border pl-2 italic;
+    }
+
+    .markdown code {
+        @apply bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono font-semibold;
+    }
+
+    .markdown pre {
+        @apply bg-muted relative rounded mt-5 first:mt-0 w-full max-w-full;
+    }
+
+    .markdown pre code {
+        @apply block font-mono text-xs sm:text-sm p-2 sm:p-4 overflow-x-auto whitespace-pre-wrap break-words bg-transparent px-0 py-0 font-normal;
+    }
+
+    .markdown a {
+        @apply text-primary underline underline-offset-4 hover:text-primary/80;
+    }
+
+    .markdown b, .markdown strong {
+        @apply font-bold;
+    }
+
+    .markdown i, .markdown em {
+        @apply italic;
+    }
+
+    .markdown ul {
+        @apply list-disc pl-6 mt-5 first:mt-0 space-y-1;
+    }
+
+    .markdown ol {
+        @apply list-decimal pl-6 mt-5 first:mt-0 space-y-1;
+    }
+
+    .markdown li {
+        @apply leading-5;
+    }
+
+    .markdown hr {
+        @apply border-border my-8;
+    }
+
+    .markdown img {
+        @apply rounded-lg my-4;
+    }
+
+    .markdown table {
+        @apply w-full border-collapse mt-5 first:mt-0;
+    }
+
+    .markdown th {
+        @apply border border-border px-4 py-2 text-left font-semibold bg-muted;
+    }
+
+    .markdown td {
+        @apply border border-border px-4 py-2;
+    }
+}

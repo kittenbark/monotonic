@@ -97,6 +97,17 @@ var LibReactBaseFuncMap template.FuncMap = map[string]interface{}{
 	"base":  filepath.Base,
 	"join":  strings.Join,
 	"split": strings.Split,
+	"auto_dark_mode": func() template.HTML {
+		return `<script>
+try {
+    const is_dark = localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);;
+    document.documentElement.classList.toggle('dark', is_dark);
+    if (is_dark) {
+    	document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#09090b');    
+    }
+} catch (_) {}
+</script>`
+	},
 }
 
 type implReact struct {
@@ -275,7 +286,7 @@ func (react *implReact) buildDirectory(
 	if page, err = react.buildDirectoryIndexMdOpt(files, funcs, page); err != nil {
 		return nil, nil, err
 	}
-	if layout, err = react.buildDirectoryLayoutYamlOpt(files, funcs, layout); err != nil {
+	if layout, err = react.buildDirectoryLayoutYamlOpt(files, funcs, layout, root); err != nil {
 		return nil, nil, err
 	}
 	if page, layout, err = react.buildDirectoryLayoutGohtmlOpt(files, funcs, page, layout); err != nil {
@@ -339,7 +350,7 @@ func (react *implReact) buildDirectoryLayoutGohtmlOpt(files map[string][]byte, f
 	return pageWithLayout, layout, nil
 }
 
-func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, funcs template.FuncMap, layout *template.Template) (newLayout *template.Template, err error) {
+func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, funcs template.FuncMap, layout *template.Template, root string) (newLayout *template.Template, err error) {
 	data, ok := files["layout.yaml"]
 	if !ok {
 		return layout, nil
@@ -352,6 +363,13 @@ func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, fun
 
 	head := []string{
 		fmt.Sprintf(`<title>%s</title>`, xhtmlEscapeString(lay.Title)),
+	}
+	if lay.Icon != "" {
+		head = append(head,
+			fmt.Sprintf(`<link rel="icon" type="image/png" sizes="32x32" href="{{file_src "%s"}}" crossorigin="anonymous">`,
+				filepath.Join(root, lay.Icon),
+			),
+		)
 	}
 	for _, value := range lay.Head {
 		head = append(head, value)
@@ -504,7 +522,8 @@ func (react *implReact) buildDirectoryIndexMdOpt(files map[string][]byte, funcs 
 	mdParser := parser.NewWithExtensions(
 		parser.CommonExtensions |
 			parser.AutoHeadingIDs |
-			parser.NoEmptyLineBeforeBlock,
+			parser.NoEmptyLineBeforeBlock |
+			parser.Tables,
 	)
 	doc := mdParser.Parse(mdBuf.Bytes())
 
@@ -513,6 +532,8 @@ func (react *implReact) buildDirectoryIndexMdOpt(files map[string][]byte, funcs 
 	})
 
 	htmlBytes := markdown.Render(doc, htmlRenderer)
+	// todo: find a fix, not a workaround
+	htmlBytes = bytes.ReplaceAll(htmlBytes, []byte("&amp;lt;"), []byte("&lt;"))
 	page.Write([]byte(`<div class="markdown">`))
 	page.Write(htmlBytes)
 	page.Write([]byte(`</div>`))
@@ -555,6 +576,7 @@ func def[T any](list []T, otherwise T) T {
 
 type reactYamlLayout struct {
 	Title string                         `yaml:"title"`
+	Icon  string                         `yaml:"icon"`
 	Meta  map[string]string              `yaml:"meta,omitempty"`
 	Head  []string                       `yaml:"extra,omitempty"`
 	Body  []*reactYamlLayoutStringOrList `yaml:"body,omitempty"`

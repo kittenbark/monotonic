@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"golang.org/x/time/rate"
+	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -118,25 +119,26 @@ func MiddlewareHeaders(headers ...string) MiddlewareFunc {
 	}
 }
 
-func MiddlewareCompressor(handlerFunc HandlerFunc) HandlerFunc {
+func MiddlewareCompressor(next HandlerFunc) HandlerFunc {
 	return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
 		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") && !isMediaExt(req.URL.Path) {
+			slog.Info("Compressor", "p", req.URL.Path)
 			gz, err := gzip.NewWriterLevel(rw, gzip.BestSpeed)
 			if err != nil {
-				return handlerFunc(ctx, rw, req)
+				return next(ctx, rw, req)
 			}
 			defer gz.Close()
 
 			rw.Header().Set("Content-Encoding", "gzip")
 			rw.Header().Del("Content-Length") // length changes after compression
 
-			return handlerFunc(ctx, &gzipResponseWriter{
+			return next(ctx, &gzipResponseWriter{
 				ResponseWriter: rw,
 				writer:         gz,
 			}, req)
 		}
 
-		return handlerFunc(ctx, rw, req)
+		return next(ctx, rw, req)
 	}
 }
 

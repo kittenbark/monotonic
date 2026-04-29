@@ -66,6 +66,10 @@ Allow: /`
 			"X-Frame-Options", "DENY", // prevent clickjacking
 			"Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'", // XSS
 			"Referrer-Policy", "strict-origin-when-cross-origin",
+			"X-Content-Type-Options", "nosniff",
+			"Strict-Transport-Security", "max-age=31536000; includeSubDomains",
+			"X-XSS-Protection", "1; mode=block",
+			"Vary", "Cookie,Accept-Language,Accept-Encoding",
 		}
 	}
 	if len(headers) > 0 {

@@ -182,6 +182,7 @@ func (react *implReact) Endpoint(endpoints Endpoints) error {
 			return fmt.Errorf("react render %s: %v", k, err)
 		}
 		endpoints[k] = func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+			rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 			if _, err := rw.Write(buff.Bytes()); err != nil {
 				return err
 			}

@@ -16,6 +16,7 @@ import (
 	xhtml "html"
 	"html/template"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"os"
@@ -28,8 +29,6 @@ import (
 	"time"
 )
 
-// todo: support resp zip
-// todo: fix dark theme
 func React(dir string, config ...ReactConfig) Endpoint {
 	cfg := def(config, ReactConfig{})
 	base := maps.Clone(LibReactBaseFuncMap)
@@ -108,6 +107,21 @@ try {
 } catch (_) {}
 </script>`
 	},
+	"dict": func(args ...any) (map[string]any, error) {
+		if len(args)%2 != 0 {
+			return nil, fmt.Errorf("dict expects even number of arguments, got %d", len(args))
+		}
+		result := make(map[string]any, len(args)/2)
+		for i := 0; i < len(args); i += 2 {
+			key, ok := args[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict expects string keys, got %T", args[i])
+			}
+			result[key] = args[i+1]
+		}
+		return result, nil
+	},
+	"list": func(args ...any) []any { return args },
 }
 
 type implReact struct {
@@ -118,45 +132,55 @@ type implReact struct {
 }
 
 type implReactBuildResult struct {
-	Result map[string]*html.Node
-	Error  error
+	Result   map[string]*html.Node
+	Handlers map[string]HandlerFunc
+	Error    error
 }
 
 func (react *implReact) Endpoint(endpoints Endpoints) error {
 	resultChannel := make(chan implReactBuildResult)
-	go func() {
-		defer close(resultChannel)
-		react.Build(react.Dir, resultChannel, nil)
-	}()
-
-	filesToHostLock := &sync.Mutex{}
+	fileSrcRegistered := map[string]bool{}
+	fileSrcRegisteredLock := &sync.Mutex{}
+	// todo: split files to lazy and hot-loaded (based on size)
 	react.Config.FuncMap["file_src"] = func(filename string, contentTypeHint ...string) (template.URL, error) {
-		filesToHostLock.Lock()
-		defer filesToHostLock.Unlock()
+		fileSrcRegisteredLock.Lock()
+		defer fileSrcRegisteredLock.Unlock()
 		data, err := os.ReadFile(filename)
 		if err != nil {
 			return "", fmt.Errorf("read file %s: %w", filename, err)
 		}
 		link := filepath.Join(react.prefix, fmt.Sprintf("%s%s", hash(data), filepath.Ext(filename)))
-		if _, ok := endpoints[link]; ok {
+		if _, ok := fileSrcRegistered[link]; ok {
 			return template.URL(link), nil
 		}
+		fileSrcRegistered[link] = true
 
 		contentType := http.DetectContentType(data)
 		if len(contentTypeHint) > 0 {
 			contentType = contentTypeHint[0]
 		}
-		endpoints[link] = func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
-			rw.Header().Set("Content-Type", contentType)
-			if _, err := rw.Write(data); err != nil {
-				return err
-			}
-			return nil
+
+		resultChannel <- implReactBuildResult{
+			Handlers: map[string]HandlerFunc{
+				link: func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+					rw.Header().Set("Content-Type", contentType)
+					if _, err := rw.Write(data); err != nil {
+						return err
+					}
+					return nil
+				},
+			},
 		}
 		return template.URL(link), nil
 	}
 
+	go func() {
+		defer close(resultChannel)
+		react.Build(react.Dir, resultChannel, nil)
+	}()
+
 	pages := map[string]*html.Node{}
+	handlers := map[string]HandlerFunc{}
 	errs := make([]error, 0)
 	for result := range resultChannel {
 		if result.Error != nil {
@@ -164,6 +188,9 @@ func (react *implReact) Endpoint(endpoints Endpoints) error {
 		}
 		if result.Result != nil {
 			maps.Copy(pages, result.Result)
+		}
+		if result.Handlers != nil {
+			maps.Copy(handlers, result.Handlers)
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -189,6 +216,7 @@ func (react *implReact) Endpoint(endpoints Endpoints) error {
 			return nil
 		}
 	}
+	maps.Copy(endpoints, handlers)
 	return nil
 }
 
@@ -245,10 +273,18 @@ func (react *implReact) Build(path string, result chan implReactBuildResult, lay
 	}
 	for _, subpath := range subpaths {
 		if subpath.IsDir {
-			//todo: find and fix race condition
-			//wg.Go(func() {
-			react.Build(filepath.Join(path, subpath.Name), result, layout)
-			//})
+			var branchLayout *template.Template
+			if layout != nil {
+				var err error
+				branchLayout, err = layout.Clone()
+				if err != nil {
+					result <- implReactBuildResult{Error: fmt.Errorf("clone layout: %w", err)}
+					continue
+				}
+			}
+			wg.Go(func() {
+				react.Build(filepath.Join(path, subpath.Name), result, branchLayout)
+			})
 		}
 	}
 	wg.Wait()
@@ -303,9 +339,7 @@ func (react *implReact) buildDirectory(
 	if err != nil {
 		return nil, nil, fmt.Errorf("error computing relative path: %w (%s -> %s)", err, react.Dir, root)
 	}
-	result = make(map[string]*html.Node)
-	result[urlPath] = parsed
-	return result, layout, nil
+	return map[string]*html.Node{urlPath: parsed}, layout, nil
 }
 
 func (react *implReact) buildDirectoryIndexGohtmlOpt(files map[string][]byte, funcs template.FuncMap, page *bytes.Buffer) (*bytes.Buffer, error) {
@@ -345,7 +379,7 @@ func (react *implReact) buildDirectoryLayoutGohtmlOpt(files map[string][]byte, f
 	layout.Funcs(makeBodyFunc(page))
 
 	pageWithLayout = &bytes.Buffer{}
-	if err := layout.Execute(pageWithLayout, nil); err != nil {
+	if err := templCloneExecute(layout, pageWithLayout, nil); err != nil {
 		return nil, nil, fmt.Errorf("error executing layout.gohtml: %w", err)
 	}
 	return pageWithLayout, layout, nil
@@ -360,6 +394,30 @@ func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, fun
 	var lay reactYamlLayout
 	if err := yaml.Unmarshal(data, &lay); err != nil {
 		return nil, fmt.Errorf("error unmarshalling layout.yaml: %w", err)
+	}
+
+	if len(lay.Components) > 0 {
+		funcs = maps.Clone(funcs)
+		for name, filename := range lay.Components {
+			slog.Info("comnonent", slog.String("filename", filename))
+			file, err := os.ReadFile(filepath.Join(root, filename))
+			if err != nil {
+				return nil, fmt.Errorf("error reading %s: %w", filename, err)
+			}
+			funcs[name] = func() (template.HTML, error) {
+				templ, err := template.New(name).
+					Funcs(funcs).
+					Parse(string(file))
+				if err != nil {
+					return "", fmt.Errorf("error parsing %s: %w", name, err)
+				}
+				buff := &bytes.Buffer{}
+				if err := templ.Execute(buff, nil); err != nil {
+					return "", fmt.Errorf("error executing %s: %w", name, err)
+				}
+				return template.HTML(buff.String()), nil
+			}
+		}
 	}
 
 	head := []string{
@@ -576,11 +634,12 @@ func def[T any](list []T, otherwise T) T {
 }
 
 type reactYamlLayout struct {
-	Title string                         `yaml:"title"`
-	Icon  string                         `yaml:"icon"`
-	Meta  map[string]string              `yaml:"meta,omitempty"`
-	Head  []string                       `yaml:"extra,omitempty"`
-	Body  []*reactYamlLayoutStringOrList `yaml:"body,omitempty"`
+	Title      string                         `yaml:"title"`
+	Icon       string                         `yaml:"icon"`
+	Meta       map[string]string              `yaml:"meta,omitempty"`
+	Head       []string                       `yaml:"extra,omitempty"`
+	Body       []*reactYamlLayoutStringOrList `yaml:"body,omitempty"`
+	Components map[string]string              `json:"components,omitempty"`
 }
 
 type reactYamlLayoutStringOrList struct {
@@ -626,4 +685,12 @@ func hash(data []byte) string {
 		panic(err)
 	}
 	return hex.EncodeToString(result.Sum(nil))[:16]
+}
+
+func templCloneExecute(templ *template.Template, wr io.Writer, data any) error {
+	clone, err := templ.Clone()
+	if err != nil {
+		return err
+	}
+	return clone.Execute(wr, data)
 }

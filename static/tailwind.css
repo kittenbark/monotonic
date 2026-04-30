@@ -77,6 +77,14 @@
         @apply bg-background text-foreground;
     }
 
+    a, button, h1, h2, h3 {
+        @apply font-medium;
+    }
+
+    * {
+        @apply border-border outline-ring/50;
+    }
+
     main {
         font-feature-settings: "rlig" 1, "calt" 1;
         -webkit-font-smoothing: antialiased;

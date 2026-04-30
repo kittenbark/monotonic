@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/acme/autocert"
@@ -112,6 +113,7 @@ type Monotonic struct {
 
 	server          *http.ServeMux
 	buildLock       sync.Mutex
+	buildTookMs     atomic.Int64
 	middlewareFuncs []MiddlewareFunc
 	errors          []error
 
@@ -149,6 +151,8 @@ func (mono *Monotonic) Param(param string, value any) *Monotonic {
 }
 
 func (mono *Monotonic) Endpoint(endpoint Endpoint, prefix ...string) *Monotonic {
+	start := time.Now()
+	defer func() { mono.buildTookMs.Add(time.Since(start).Milliseconds()) }()
 	endpoints := map[string]HandlerFunc{}
 	pref, err := url.JoinPath("/", prefix...)
 	if err != nil {
@@ -186,7 +190,7 @@ func (mono *Monotonic) Start() error {
 			}(),
 			addr,
 		)
-		fmt.Printf("Errors: %v\n", mono.errors)
+		fmt.Printf("Built in %.2f seconds. Errors: %v\n", float64(mono.buildTookMs.Load())/1000, mono.errors)
 		fmt.Printf(">> Listening on %s\n", link)
 		endpointsList := []string{}
 		for endpoint := range mono.endpoints {

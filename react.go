@@ -16,7 +16,6 @@ import (
 	xhtml "html"
 	"html/template"
 	"io"
-	"log/slog"
 	"maps"
 	"net/http"
 	"os"
@@ -96,16 +95,31 @@ var LibReactBaseFuncMap template.FuncMap = map[string]interface{}{
 	"base":  filepath.Base,
 	"join":  strings.Join,
 	"split": strings.Split,
-	"auto_dark_mode": func() template.HTML {
-		return `<script>
+	"auto_dark_mode": func(args ...string) template.HTML {
+		mode := "system"
+		if len(args) > 0 && args[0] != "" {
+			mode = args[0]
+		}
+
+		var condition string
+		switch mode {
+		case "dark":
+			condition = "true"
+		case "light":
+			condition = "false"
+		default:
+			condition = `localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)`
+		}
+
+		return template.HTML(fmt.Sprintf(`<script>
 try {
-    const is_dark = localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);;
+    const is_dark = %s;
     document.documentElement.classList.toggle('dark', is_dark);
     if (is_dark) {
-    	document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#09090b');    
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#09090b');
     }
 } catch (_) {}
-</script>`
+</script>`, condition))
 	},
 	"dict": func(args ...any) (map[string]any, error) {
 		if len(args)%2 != 0 {
@@ -399,7 +413,6 @@ func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, fun
 	if len(lay.Components) > 0 {
 		funcs = maps.Clone(funcs)
 		for name, filename := range lay.Components {
-			slog.Info("comnonent", slog.String("filename", filename))
 			file, err := os.ReadFile(filepath.Join(root, filename))
 			if err != nil {
 				return nil, fmt.Errorf("error reading %s: %w", filename, err)

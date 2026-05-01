@@ -95,6 +95,19 @@ var LibReactBaseFuncMap template.FuncMap = map[string]interface{}{
 	"base":  filepath.Base,
 	"join":  strings.Join,
 	"split": strings.Split,
+	"trim":  strings.Trim,
+	"sub": func(a, b any) any {
+		switch v := a.(type) {
+		case int:
+			return v - b.(int)
+		case int64:
+			return v - b.(int64)
+		case float64:
+			return v - b.(float64)
+		default:
+			return nil
+		}
+	},
 	"auto_dark_mode": func(args ...string) template.HTML {
 		mode := "system"
 		if len(args) > 0 && args[0] != "" {
@@ -312,6 +325,13 @@ func (react *implReact) buildDirectory(
 	funcs := maps.Clone(react.Config.FuncMap)
 	funcs["pwd"] = func() string { return root }
 	funcs["rel"] = func() (string, error) { return filepath.Rel(react.Dir, root) }
+	funcs["url"] = func() (string, error) {
+		rel, err := filepath.Rel(react.Dir, root)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join("/", rel), nil
+	}
 	funcs["absolute"] = func(filename string) (string, error) { return filepath.Abs(filepath.Join(root, filename)) }
 	funcs["funcs"] = func() template.FuncMap { return funcs }
 
@@ -340,7 +360,7 @@ func (react *implReact) buildDirectory(
 	if layout, err = react.buildDirectoryLayoutYamlOpt(files, funcs, layout, root); err != nil {
 		return nil, nil, err
 	}
-	if page, layout, err = react.buildDirectoryLayoutGohtmlOpt(files, funcs, page, layout); err != nil {
+	if page, layout, err = react.buildDirectoryFinal(files, funcs, page, layout); err != nil {
 		return nil, nil, err
 	}
 
@@ -374,23 +394,14 @@ func (react *implReact) buildDirectoryIndexGohtmlOpt(files map[string][]byte, fu
 	return page, nil
 }
 
-func (react *implReact) buildDirectoryLayoutGohtmlOpt(files map[string][]byte, funcs template.FuncMap, page *bytes.Buffer, layout *template.Template) (pageWithLayout *bytes.Buffer, newLayout *template.Template, err error) {
-	if data, ok := files["layout.gohtml"]; ok {
-		templ, err := template.New("layout.gohtml").
-			Funcs(funcs).
-			Funcs(makeBodyFunc(page)).
-			Parse(string(data))
-		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing layout.gohtml: %w", err)
-		}
-		layout = templ
-	}
-
+func (react *implReact) buildDirectoryFinal(files map[string][]byte, funcs template.FuncMap, page *bytes.Buffer, layout *template.Template) (pageWithLayout *bytes.Buffer, newLayout *template.Template, err error) {
 	if layout == nil {
 		return page, nil, nil
 	}
 
-	layout.Funcs(makeBodyFunc(page))
+	layout.
+		Funcs(funcs).
+		Funcs(makeBodyFunc(page))
 
 	pageWithLayout = &bytes.Buffer{}
 	if err := templCloneExecute(layout, pageWithLayout, nil); err != nil {
@@ -410,12 +421,17 @@ func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, fun
 		return nil, fmt.Errorf("error unmarshalling layout.yaml: %w", err)
 	}
 
+	dynamicComponents := map[string]string{}
 	if len(lay.Components) > 0 {
 		funcs = maps.Clone(funcs)
-		for name, filename := range lay.Components {
-			file, err := os.ReadFile(filepath.Join(root, filename))
+		for name, component := range lay.Components {
+			file, err := os.ReadFile(filepath.Join(root, component.Source))
 			if err != nil {
-				return nil, fmt.Errorf("error reading %s: %w", filename, err)
+				return nil, fmt.Errorf("error reading %s: %w", component.Source, err)
+			}
+			if component.Dynamic {
+				dynamicComponents[name] = string(file)
+				continue
 			}
 			funcs[name] = func() (template.HTML, error) {
 				templ, err := template.New(name).
@@ -486,6 +502,9 @@ func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, fun
 		strings.Join(bodyStart, "\n"),
 		strings.Join(bodyEnd, "\n"),
 	)
+	for name, value := range dynamicComponents {
+		schema = strings.ReplaceAll(schema, fmt.Sprintf("{{%s}}", name), value)
+	}
 
 	templ, err := template.New("layout.gohtml").
 		Funcs(funcs).
@@ -647,12 +666,37 @@ func def[T any](list []T, otherwise T) T {
 }
 
 type reactYamlLayout struct {
-	Title      string                         `yaml:"title"`
-	Icon       string                         `yaml:"icon"`
-	Meta       map[string]string              `yaml:"meta,omitempty"`
-	Head       []string                       `yaml:"extra,omitempty"`
-	Body       []*reactYamlLayoutStringOrList `yaml:"body,omitempty"`
-	Components map[string]string              `json:"components,omitempty"`
+	Title      string                              `yaml:"title"`
+	Icon       string                              `yaml:"icon"`
+	Meta       map[string]string                   `yaml:"meta,omitempty"`
+	Head       []string                            `yaml:"extra,omitempty"`
+	Body       []*reactYamlLayoutStringOrList      `yaml:"body,omitempty"`
+	Components map[string]reactYamlLayoutComponent `json:"components,omitempty"`
+}
+
+type reactYamlLayoutComponent struct {
+	Source  string `yaml:"source"`
+	Dynamic bool   `yaml:"dynamic"`
+}
+
+func (r *reactYamlLayoutComponent) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var source string
+	if err := unmarshal(&source); err == nil {
+		r.Source = source
+		r.Dynamic = false
+		return nil
+	}
+
+	// If string fails, try to unmarshal into a "shadow" struct to avoid infinite recursion
+	type shadow reactYamlLayoutComponent
+	var s shadow
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	r.Source = s.Source
+	r.Dynamic = s.Dynamic
+	return nil
 }
 
 type reactYamlLayoutStringOrList struct {

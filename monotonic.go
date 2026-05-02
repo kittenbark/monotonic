@@ -65,7 +65,7 @@ Allow: /`
 	if headers == nil {
 		headers = []string{
 			"X-Frame-Options", "DENY", // prevent clickjacking
-			"Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'", // XSS
+			"Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' img-src 'self' data:", // XSS
 			"Referrer-Policy", "strict-origin-when-cross-origin",
 			"X-Content-Type-Options", "nosniff",
 			"Strict-Transport-Security", "max-age=31536000; includeSubDomains",

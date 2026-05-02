@@ -396,6 +396,9 @@ func (react *implReact) buildDirectory(
 	if layout, err = react.buildDirectoryLayoutYamlOpt(files, funcs, layout, root); err != nil {
 		return nil, nil, err
 	}
+	if page.Len() == 0 {
+		return nil, layout, nil
+	}
 	if page, layout, err = react.buildDirectoryFinal(files, funcs, page, layout); err != nil {
 		return nil, nil, err
 	}

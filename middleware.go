@@ -5,10 +5,12 @@ import (
 	"context"
 	"fmt"
 	"golang.org/x/time/rate"
+	"log/slog"
 	"math"
 	"net"
 	"net/http"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -16,6 +18,22 @@ import (
 )
 
 type MiddlewareFunc = func(HandlerFunc) HandlerFunc
+
+func MiddlewareOnErrorLog(handler HandlerFunc) HandlerFunc {
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+		defer func() {
+			if err := recover(); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				slog.Error("monotonic#handler_panic", "err", err, "stack", string(debug.Stack()))
+			}
+		}()
+		if err := handler(ctx, w, r); err != nil {
+			slog.Error("monotonic#handler_error", "err", err)
+			return err
+		}
+		return nil
+	}
+}
 
 func MiddlewareRpsLimitPerIP(rps float64, burst int) MiddlewareFunc {
 	lock := sync.RWMutex{}

@@ -34,10 +34,9 @@ func React(dir string, config ...ReactConfig) Endpoint {
 	maps.Insert(base, maps.All(cfg.FuncMap))
 	cfg.FuncMap = base
 	return &implReact{
-		Dir:      dir,
-		Config:   cfg,
-		prefix:   fmt.Sprintf("/_monotonic_%d/", implReactIndex.Add(1)),
-		tailwind: cfg.Tailwind,
+		Dir:    dir,
+		Config: cfg,
+		prefix: fmt.Sprintf("/_monotonic_%d/", implReactIndex.Add(1)),
 	}
 }
 
@@ -70,8 +69,6 @@ var (
 type ReactConfig struct {
 	FuncMap  template.FuncMap
 	Handlers map[string]HandlerFunc
-
-	Tailwind []string
 }
 
 // todo: support this for real
@@ -166,40 +163,7 @@ type implReactBuildResult struct {
 
 func (react *implReact) Endpoint(endpoints Endpoints) error {
 	resultChannel := make(chan implReactBuildResult)
-	fileSrcRegistered := map[string]bool{}
-	fileSrcRegisteredLock := &sync.Mutex{}
-	// todo: split files to lazy and hot-loaded (based on size)
-	react.Config.FuncMap["file_src"] = func(filename string, contentTypeHint ...string) (template.URL, error) {
-		fileSrcRegisteredLock.Lock()
-		defer fileSrcRegisteredLock.Unlock()
-		data, err := os.ReadFile(filename)
-		if err != nil {
-			return "", fmt.Errorf("read file %s: %w", filename, err)
-		}
-		link := filepath.Join(react.prefix, fmt.Sprintf("%s%s", hash(data), filepath.Ext(filename)))
-		if _, ok := fileSrcRegistered[link]; ok {
-			return template.URL(link), nil
-		}
-		fileSrcRegistered[link] = true
-
-		contentType := http.DetectContentType(data)
-		if len(contentTypeHint) > 0 {
-			contentType = contentTypeHint[0]
-		}
-
-		resultChannel <- implReactBuildResult{
-			Handlers: map[string]HandlerFunc{
-				link: func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
-					rw.Header().Set("Content-Type", contentType)
-					if _, err := rw.Write(data); err != nil {
-						return err
-					}
-					return nil
-				},
-			},
-		}
-		return template.URL(link), nil
-	}
+	react.Config.FuncMap["file_src"] = filesHost(resultChannel, react.prefix)
 
 	go func() {
 		defer close(resultChannel)
@@ -245,6 +209,77 @@ func (react *implReact) Endpoint(endpoints Endpoints) error {
 	}
 	maps.Copy(endpoints, handlers)
 	return nil
+}
+
+func filesHost(result chan implReactBuildResult, prefix string) func(filename string, contentTypeHint ...string) (template.URL, error) {
+	fileSrcRegistered := map[string]bool{}
+	fileSrcRegisteredLock := &sync.Mutex{}
+	cache := s3fifoNew(80)
+	return func(filename string, contentTypeHint ...string) (template.URL, error) {
+		fileSrcRegisteredLock.Lock()
+		defer fileSrcRegisteredLock.Unlock()
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			return "", fmt.Errorf("read file %s: %w", filename, err)
+		}
+		link := filepath.Join(prefix, fmt.Sprintf("%s%s", hash(data), filepath.Ext(filename)))
+		if _, ok := fileSrcRegistered[link]; ok {
+			return template.URL(link), nil
+		}
+		fileSrcRegistered[link] = true
+
+		contentType := http.DetectContentType(data)
+		if len(contentTypeHint) > 0 {
+			contentType = contentTypeHint[0]
+		}
+
+		result <- implReactBuildResult{
+			Handlers: map[string]HandlerFunc{
+				link: reactMediaHandler(cache, link, filename, contentType),
+			},
+		}
+		return template.URL(link), nil
+	}
+}
+
+func reactMediaHandler(cache *s3fifo, link string, filename string, contentType string) func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+	return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+		rw.Header().Set("Content-Type", contentType)
+		media, ok := cache.Get(link)
+		if ok {
+			if _, err := rw.Write(media); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		stat, err := os.Stat(filename)
+		if err != nil {
+			return err
+		}
+		if stat.Size() >= (50 << 20) {
+			file, err := os.Open(filename)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+			if _, err := io.Copy(rw, file); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		media, err = os.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+		cache.Set(link, media)
+		if _, err := rw.Write(media); err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 type buildDirectoryPath struct {
@@ -483,8 +518,7 @@ func (react *implReact) buildDirectoryLayoutYamlOpt(files map[string][]byte, fun
 	}
 	slices.Reverse(bodyEnd)
 
-	schema := fmt.Sprintf(`
-<!DOCTYPE html>
+	schema := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">

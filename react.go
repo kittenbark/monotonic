@@ -48,6 +48,7 @@ type TailwindConfig struct {
 	Timeout  time.Duration
 	ConfigJs []byte
 	InputCss []byte
+	Enabled  bool
 }
 
 var Tailwind = TailwindConfig{
@@ -56,6 +57,7 @@ var Tailwind = TailwindConfig{
 	Timeout:  time.Minute,
 	ConfigJs: tailwindConfigJs,
 	InputCss: tailwindInputCss,
+	Enabled:  true,
 }
 
 var (
@@ -149,10 +151,9 @@ try {
 }
 
 type implReact struct {
-	Dir      string
-	Config   ReactConfig
-	prefix   string
-	tailwind []string
+	Dir    string
+	Config ReactConfig
+	prefix string
 }
 
 type implReactBuildResult struct {
@@ -188,7 +189,7 @@ func (react *implReact) Endpoint(endpoints Endpoints) error {
 		return fmt.Errorf("react build: %v", err)
 	}
 
-	if len(react.tailwind) > 0 {
+	if Tailwind.Enabled {
 		if err := react.buildTailwind(pages); err != nil {
 			return fmt.Errorf("react build tailwind: %v", err)
 		}
@@ -580,7 +581,7 @@ func (react *implReact) buildTailwind(pages map[string]*html.Node) error {
 	}
 
 	outputCSS := filepath.Join(dir, "output.css")
-	args := append(slices.Clone(react.tailwind),
+	args := append(slices.Clone(Tailwind.Path),
 		"-i", filepath.Join(dir, "input.css"),
 		"-o", outputCSS,
 		"-m",

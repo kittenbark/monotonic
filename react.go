@@ -666,9 +666,9 @@ func (react *implReact) buildDirectoryIndexMdOpt(files map[string][]byte, funcs 
 	})
 
 	htmlBytes := markdown.Render(doc, htmlRenderer)
-	// todo: find a fix, not a workaround
+	// todo: find a fix, not a workaround (there's a chance the bug lies in mdhtml lib)
 	htmlBytes = bytes.ReplaceAll(htmlBytes, []byte("&amp;lt;"), []byte("&lt;"))
-	page.Write([]byte(`<div class="markdown">`))
+	page.Write([]byte(`<div class="markdown mx-1">`))
 	page.Write(htmlBytes)
 	page.Write([]byte(`</div>`))
 

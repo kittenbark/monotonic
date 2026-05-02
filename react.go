@@ -372,6 +372,7 @@ func (react *implReact) buildDirectory(
 	funcs["funcs"] = func() template.FuncMap { return funcs }
 
 	files := map[string][]byte{}
+	containsIndexFile := false
 	for _, path := range paths {
 		if path.IsDir {
 			continue
@@ -381,6 +382,10 @@ func (react *implReact) buildDirectory(
 			return nil, nil, fmt.Errorf("error reading %s: %w", path.Name, err)
 		}
 		files[path.Name] = data
+
+		if strings.HasPrefix(path.Name, "index.") {
+			containsIndexFile = true
+		}
 	}
 
 	page := &bytes.Buffer{}
@@ -396,7 +401,7 @@ func (react *implReact) buildDirectory(
 	if layout, err = react.buildDirectoryLayoutYamlOpt(files, funcs, layout, root); err != nil {
 		return nil, nil, err
 	}
-	if page.Len() == 0 {
+	if !containsIndexFile {
 		return nil, layout, nil
 	}
 	if page, layout, err = react.buildDirectoryFinal(files, funcs, page, layout); err != nil {

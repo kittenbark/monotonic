@@ -30,16 +30,16 @@
     --color-accent-foreground: oklch(0.21 0.006 285.885);
 
     /* ── Status Colors ── */
-    --color-destructive: oklch(0.577 0.245 27.325); /* Red */
+    --color-destructive: oklch(0.577 0.245 27.325);
     --color-destructive-foreground: oklch(1 0 0);
 
-    --color-warning: oklch(0.769 0.188 70.080); /* Amber/Orange */
+    --color-warning: oklch(0.769 0.188 70.080);
     --color-warning-foreground: oklch(0.141 0.005 285.823);
 
-    --color-success: oklch(0.627 0.150 160.000); /* Emerald Green */
+    --color-success: oklch(0.627 0.150 160.000);
     --color-success-foreground: oklch(1 0 0);
 
-    --color-info: oklch(0.556 0.200 250.000); /* Blue */
+    --color-info: oklch(0.556 0.200 250.000);
     --color-info-foreground: oklch(1 0 0);
 
     /* ── UI Elements ── */
@@ -83,34 +83,36 @@
     }
 }
 
-/* ── Dark Theme Overrides ── */
+/* ── Dark Theme Overrides (Softer Charcoal Tone) ── */
 .dark {
-    --color-background: oklch(0.140 0 0);
+    /* Base Backgrounds (Lightness raised from 0.140 -> 0.200) */
+    --color-background: oklch(0.200 0 0);
     --color-foreground: oklch(0.985 0 0);
 
-    --color-card: oklch(0.140 0 0);
+    --color-card: oklch(0.200 0 0);
     --color-card-foreground: oklch(0.985 0 0);
 
-    --color-popover: oklch(0.140 0 0);
+    --color-popover: oklch(0.200 0 0);
     --color-popover-foreground: oklch(0.985 0 0);
 
     --color-primary: oklch(0.985 0 0);
-    --color-primary-foreground: oklch(0.140 0 0);
+    --color-primary-foreground: oklch(0.200 0 0);
 
-    --color-secondary: oklch(0.250 0 0);
+    /* Secondary & Muted (Lightness raised from 0.250 -> 0.280 to contrast new background) */
+    --color-secondary: oklch(0.280 0 0);
     --color-secondary-foreground: oklch(0.985 0 0);
 
-    --color-muted: oklch(0.250 0 0);
+    --color-muted: oklch(0.280 0 0);
     --color-muted-foreground: oklch(0.700 0 0);
 
-    --color-accent: oklch(0.250 0 0);
+    --color-accent: oklch(0.280 0 0);
     --color-accent-foreground: oklch(0.985 0 0);
 
     --color-destructive: oklch(0.577 0.245 27.325);
     --color-destructive-foreground: oklch(0.985 0 0);
 
     --color-warning: oklch(0.700 0.160 70.080);
-    --color-warning-foreground: oklch(0.140 0 0);
+    --color-warning-foreground: oklch(0.200 0 0);
 
     --color-success: oklch(0.527 0.130 160.000);
     --color-success-foreground: oklch(0.985 0 0);
@@ -118,18 +120,20 @@
     --color-info: oklch(0.480 0.180 250.000);
     --color-info-foreground: oklch(0.985 0 0);
 
-    --color-border: oklch(0.250 0 0);
-    --color-input: oklch(0.250 0 0);
-    --color-ring: oklch(0.400 0 0);
+    /* UI Element Borders */
+    --color-border: oklch(0.280 0 0);
+    --color-input: oklch(0.280 0 0);
+    --color-ring: oklch(0.450 0 0);
 
-    --color-sidebar: oklch(0.160 0 0);
+    /* Sidebar (Elevated slightly to 0.230) */
+    --color-sidebar: oklch(0.230 0 0);
     --color-sidebar-foreground: oklch(0.985 0 0);
     --color-sidebar-primary: oklch(0.985 0 0);
-    --color-sidebar-primary-foreground: oklch(0.140 0 0);
-    --color-sidebar-accent: oklch(0.250 0 0);
+    --color-sidebar-primary-foreground: oklch(0.200 0 0);
+    --color-sidebar-accent: oklch(0.280 0 0);
     --color-sidebar-accent-foreground: oklch(0.985 0 0);
-    --color-sidebar-border: oklch(0.250 0 0);
-    --color-sidebar-ring: oklch(0.400 0 0);
+    --color-sidebar-border: oklch(0.280 0 0);
+    --color-sidebar-ring: oklch(0.450 0 0);
 }
 
 @layer base {
@@ -160,7 +164,7 @@
         @apply bg-primary text-primary-foreground;
     }
 
-    /* ── Custom Scrollbars (Sleek & Professional) ── */
+    /* ── Custom Scrollbars ── */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -178,7 +182,6 @@
         @apply bg-muted-foreground/50;
     }
 
-    /* Firefox */
     * {
         scrollbar-width: thin;
         scrollbar-color: var(--color-muted-foreground) transparent;

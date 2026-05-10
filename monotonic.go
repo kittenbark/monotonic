@@ -166,18 +166,21 @@ func (mono *Monotonic) Param(param string, value any) *Monotonic {
 func (mono *Monotonic) Endpoint(endpoint Endpoint, prefix ...string) *Monotonic {
 	start := time.Now()
 	defer func() { mono.buildTookMs.Add(time.Since(start).Milliseconds()) }()
-	endpoints := map[string]HandlerFunc{}
+	endpointsWithoutPrefix := map[string]HandlerFunc{}
 	pref, err := url.JoinPath("/", prefix...)
 	if err != nil {
 		mono.errors = append(mono.errors, err)
 		return mono
 	}
-	if err := endpoint.Endpoint(endpoints); err != nil {
+	if err := endpoint.Endpoint(endpointsWithoutPrefix); err != nil {
 		mono.errors = append(mono.errors, err)
 		return mono
 	}
-	for path, endpoint := range endpoints {
-		mono.newEndpoint(filepath.Clean(pref+"/"+path), endpoint)
+	if strings.HasSuffix(pref, "/") {
+		pref += "/"
+	}
+	for path, endpointWithoutPrefix := range endpointsWithoutPrefix {
+		mono.newEndpoint(pref+path, endpointWithoutPrefix)
 	}
 	return mono
 }

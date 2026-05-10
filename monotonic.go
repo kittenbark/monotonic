@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-func HandlerFuncFromHttp(handler http.HandlerFunc) HandlerFunc {
+func HandlerFuncFromHttp(handler http.Handler) HandlerFunc {
 	return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) (err error) {
 		defer func() {
 			if r := recover(); r != nil {

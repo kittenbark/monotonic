@@ -3,6 +3,7 @@ package mono
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,6 +18,18 @@ import (
 
 	"golang.org/x/crypto/acme/autocert"
 )
+
+func HandlerFuncFromHttp(handler http.HandlerFunc) HandlerFunc {
+	return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = errors.Join(err, fmt.Errorf("panic: %v", r))
+			}
+		}()
+		handler.ServeHTTP(rw, req)
+		return nil
+	}
+}
 
 type HandlerFunc func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error
 

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -167,11 +167,7 @@ func (mono *Monotonic) Endpoint(endpoint Endpoint, prefix ...string) *Monotonic 
 	start := time.Now()
 	defer func() { mono.buildTookMs.Add(time.Since(start).Milliseconds()) }()
 	endpointsWithoutPrefix := map[string]HandlerFunc{}
-	pref, err := url.JoinPath("/", prefix...)
-	if err != nil {
-		mono.errors = append(mono.errors, err)
-		return mono
-	}
+	pref := path.Join(append([]string{"/"}, prefix...)...)
 	if err := endpoint.Endpoint(endpointsWithoutPrefix); err != nil {
 		mono.errors = append(mono.errors, err)
 		return mono

@@ -35,14 +35,29 @@ func MiddlewareOnErrorLog(handler HandlerFunc) HandlerFunc {
 	}
 }
 
-func MiddlewareRpsLimitPerIP(rps float64, burst int) MiddlewareFunc {
+func MiddlewareRpsLimitPerIP(
+	rps float64,
+	burst int,
+	filterIf ...func(ctx context.Context, req *http.Request) bool,
+) MiddlewareFunc {
 	lock := sync.RWMutex{}
 	states := map[string]*rate.Limiter{}
 	lastCleanup := time.Now()
 	const cleanupInterval = time.Minute
 
+	pred := func(ctx context.Context, req *http.Request) bool {
+		return true
+	}
+	if len(filterIf) > 0 {
+		pred = filterIf[0]
+	}
+
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
+			if !pred(ctx, req) {
+				return next(ctx, rw, req)
+			}
+
 			start := time.Now()
 			if start.Sub(lastCleanup) > cleanupInterval {
 				lock.Lock()
@@ -87,6 +102,19 @@ func MiddlewareRpsLimitPerIP(rps float64, burst int) MiddlewareFunc {
 
 			return next(ctx, rw, req)
 		}
+	}
+}
+
+func MiddlewareRpsLimitPerIPWhitelistPaths(paths ...string) func(req *http.Request) bool {
+	whitelist := map[string]struct{}{}
+	for _, path := range paths {
+		whitelist[path] = struct{}{}
+	}
+	return func(req *http.Request) bool {
+		if _, ok := whitelist[req.URL.Path]; ok {
+			return true
+		}
+		return false
 	}
 }
 

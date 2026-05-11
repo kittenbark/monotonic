@@ -38,14 +38,14 @@ func MiddlewareOnErrorLog(handler HandlerFunc) HandlerFunc {
 func MiddlewareRpsLimitPerIP(
 	rps float64,
 	burst int,
-	filterIf ...func(ctx context.Context, req *http.Request) bool,
+	filterIf ...func(req *http.Request) bool,
 ) MiddlewareFunc {
 	lock := sync.RWMutex{}
 	states := map[string]*rate.Limiter{}
 	lastCleanup := time.Now()
 	const cleanupInterval = time.Minute
 
-	pred := func(ctx context.Context, req *http.Request) bool {
+	pred := func(req *http.Request) bool {
 		return true
 	}
 	if len(filterIf) > 0 {
@@ -54,7 +54,7 @@ func MiddlewareRpsLimitPerIP(
 
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
-			if !pred(ctx, req) {
+			if !pred(req) {
 				return next(ctx, rw, req)
 			}
 

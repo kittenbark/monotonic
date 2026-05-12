@@ -167,16 +167,16 @@ func (mono *Monotonic) Endpoint(endpoint Endpoint, prefix ...string) *Monotonic 
 	start := time.Now()
 	defer func() { mono.buildTookMs.Add(time.Since(start).Milliseconds()) }()
 	endpointsWithoutPrefix := map[string]HandlerFunc{}
-	pref := path.Join(append([]string{"/"}, prefix...)...)
+	pref := filepath.Clean(path.Join("/", path.Join(prefix...)))
+	if !strings.HasSuffix(pref, "/") {
+		pref += "/"
+	}
 	if err := endpoint.Endpoint(endpointsWithoutPrefix); err != nil {
 		mono.errors = append(mono.errors, err)
 		return mono
 	}
-	if strings.HasSuffix(pref, "/") {
-		pref += "/"
-	}
-	for path, endpointWithoutPrefix := range endpointsWithoutPrefix {
-		mono.newEndpoint(pref+path, endpointWithoutPrefix)
+	for urlpath, endpointWithoutPrefix := range endpointsWithoutPrefix {
+		mono.newEndpoint(path.Join(pref, urlpath), endpointWithoutPrefix)
 	}
 	return mono
 }
